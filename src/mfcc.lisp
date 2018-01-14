@@ -12,9 +12,6 @@
 ;; See the License for the specific language governing permissions and
 ;; limitations under the License.
 
-;; Will either need to copy more from cl-asr
-;; or use cl-wav.
-
 
 (in-package :mfcc)
 
@@ -71,6 +68,7 @@
 ;;;;; SAMPLE PROCESSING FUNCTIONS... ;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;; AUDIO-SEGMENT used a lot here.
 (defun split-audio-into-frames (audio &key (frame-length 25) (frame-delta 10) verbose)
   "Given an audio segment, chop it up into frames."
   (let* ((total-sample-count (length (audio-segment-samples audio)))
@@ -347,7 +345,7 @@
   "Given a list of mel features, compute the DCT, then return the top-n of those."
   (declare (ignore cepstrum-count))
   ;;(dct feature-list cepstrum-count)
-  (dct feature-list))
+  (dct:dct feature-list))
 
 (defun mel-cepstrum-features->mel-features (feature-list &optional (n 40))
   "Convert a list of Mel cepstral feature values, back to mel features.  This is done by
@@ -356,7 +354,7 @@
     (dotimes (i n)
       (push 0 new-list))
     (setf (subseq new-list 0 (length feature-list)) feature-list)    
-    (idct new-list)))
+    (dct:idct new-list)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;; MAIN FEATURE COMPUTATION  ;;;;;;;;;;
@@ -404,38 +402,4 @@
 	 (velocity-features (get-feature-deltas mfccs))
 	 (acceleration-features (get-feature-deltas velocity-features)))
     (declare (ignore xxx-ignore))
-    (coerce (mapcar (lambda (x y z) (coerce (append x y z) '(vector single-float))) mfccs velocity-features acceleration-features)  'vector)))
-
-(defun convert-audio-to-mfcc-file (filename &key (filter-bank-size 40) (start-freq 100) (end-freq 4000) (cepstrum-count 13) (preemphasize 0.95) (cepstra-mean-normalization t) (frame-length 25) (frame-delta 10) (extension ".mfc") (filename-transcript-function nil) (transcript nil))
-  "Given an audio filename, compute MFCC features for that audio and write them to a .mfc file."
-  (let* ((audio (cond ((cl-ppcre:scan ".audio$" filename)
-		       (load-audio-file filename))
-		      ((cl-ppcre:scan ".wav$" filename)
-		       (load-wav-file filename))
-		      (t (error "Unknown audio file extension!"))))
-	 (mfccs (get-mfcc-features audio :filter-bank-size filter-bank-size :start-freq start-freq :end-freq end-freq :cepstrum-count cepstrum-count :preemphasize preemphasize :cepstra-mean-normalization cepstra-mean-normalization :frame-length frame-length :frame-delta frame-delta))
-	 (mfcc-struct (make-mfcc-sequence
-		       :seconds (audio-segment-seconds audio)
-		       :id (audio-segment-id audio)
-		       :source (audio-segment-source audio)
-		       :sample-rate (audio-segment-sample-rate audio)
-		       :sample-resolution (audio-segment-sample-resolution audio)
-		       :transcript (audio-segment-transcript audio)
-		       :mfcc-seq mfccs
-		       :filter-bank-size filter-bank-size
-		       :start-freq start-freq
-		       :end-freq end-freq
-		       :cepstrum-count cepstrum-count
-		       :preemphasis preemphasize
-		       :cepstra-mean-normalization cepstra-mean-normalization
-		       :frame-length frame-length
-		       :frame-delta frame-delta))
-	 (new-filename filename))
-    (when filename-transcript-function
-      (let ((transcript (funcall filename-transcript-function filename)))
-	(setf (mfcc-sequence-transcript mfcc-struct) transcript)))
-    (when transcript
-      (setf (mfcc-sequence-transcript mfcc-struct) transcript))
-    (setf new-filename (cl-ppcre:regex-replace ".[A-Za-z]*$" new-filename extension ))  ;;; removes the existing extension?
-    (save-object mfcc-struct new-filename)
-    (values)))
+    (coerce (mapcar (lambda (x y z) (coerce (append x y z) '(vector single-float))) mfccs velocity-features acceleration-features) 'vector)))

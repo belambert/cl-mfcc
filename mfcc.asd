@@ -14,6 +14,6 @@
     ((:file "package")
      (:file "mfcc"))))
   :depends-on (:alexandria
-	       :bordeaux-fft
-	       :CL-PPCRE))
+	       :dct
+	       :bordeaux-fft))
 
