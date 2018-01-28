@@ -12,8 +12,12 @@
     :serial t
     :components
     ((:file "package")
+     (:file "vector-math")
+     ;;(:file "wav-interface")
      (:file "mfcc"))))
+  ;; will need some audio reading dependencies here...
   :depends-on (:alexandria
 	       :dct
-	       :bordeaux-fft))
+	       :bordeaux-fft
+	       :cl-wav))
 

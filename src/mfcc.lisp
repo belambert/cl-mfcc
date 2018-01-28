@@ -13,7 +13,30 @@
 ;; limitations under the License.
 
 
+;; AUDIO SEGMENT IS USED A LOT.  MAYBE JUST CONVERT CL-RIFF/CL-WAV to our format!?
+
 (in-package :mfcc)
+
+(defstruct (audio-segment
+	     (:print-function
+	      (lambda (struct stream depth)
+                 (declare (ignore depth))
+                 (format stream "[audio-segment: ~A seconds, sample-rate: ~A, sample-count: ~A]"
+			 (audio-segment-seconds struct)
+			 (audio-segment-sample-rate struct)
+			 (length (audio-segment-samples struct))))))
+  "Defines an audio segment.  Consists of samples and meta-information, like the source, sampling rate, etc.
+   Can be serialized and save to a file."
+  seconds
+  id
+  source
+  sample-rate
+  sample-resolution
+  transcript
+  samples
+  filename)
+
+
 
 (defstruct mfcc-sequence
   "Defines the computed features for an audio segment, along with as much meta-data as possible."
@@ -263,6 +286,7 @@
    and end frequency values.
    Note: This gets called on every frame"
   (let ((mel-feature-values (get-mel-feature-values dft-analysis filter-bank-size :start-freq start-freq :end-freq end-freq)))
+    ;; This log dies when it see a zero...
     (map-into mel-feature-values 'log mel-feature-values)
     mel-feature-values))
 
@@ -380,11 +404,22 @@
 	(previous-feature-vector nil))
     (dolist (feature-vector feature-list-array)
       (if previous-feature-vector
-	  (push (mapcar '- feature-vector previous-feature-vector)
+	  ;;(push (mapcar '- feature-vector previous-feature-vector)
+	  (push (map 'vector '- feature-vector previous-feature-vector)
 		delta-list)
 	  (push (get-list-of-length-n 0.0 feature-count) delta-list))
       (setf previous-feature-vector feature-vector))
     (nreverse delta-list)))
+
+
+;; do this for audio
+;; (defvar *wav* (wav:read-wav-file "/Users/bel/Music/iTunes/iTunes Media/Music/Unknown Artist/Unknown Album/04 Inchworm.wav"))
+;; result looks something like:
+
+;; CL-USER> (first *wav*)
+;; (:CHUNK-ID "RIFF" :CHUNK-DATA-SIZE 34188708 :FILE-TYPE "WAVE")      
+;; (second *wav*)
+;; (:CHUNK-ID "fmt " :CHUNK-DATA-SIZE 16 :CHUNK-DATA                                                                                               (:COMPRESSION-CODE 1 :NUMBER-OF-CHANNELS 2 :SAMPLE-RATE 44100                                                                                   :AVERAGE-BYTES-PER-SECOND 176400 :BLOCK-ALIGN 4 :SIGNIFICANT-BITS-PER-SAMPLE                                                                   16))                                                                                                                                         
 
 (defun get-mfcc-features (audio &key (filter-bank-size 40) (start-freq 100) (end-freq 4000) (cepstrum-count 13) (preemphasize 0.95)
 			  (cepstra-mean-normalization t) (frame-length 25) (frame-delta 10))
@@ -402,4 +437,31 @@
 	 (velocity-features (get-feature-deltas mfccs))
 	 (acceleration-features (get-feature-deltas velocity-features)))
     (declare (ignore xxx-ignore))
-    (coerce (mapcar (lambda (x y z) (coerce (append x y z) '(vector single-float))) mfccs velocity-features acceleration-features) 'vector)))
+    (coerce (mapcar (lambda (x y z) (coerce (concatenate 'vector x y z) '(vector single-float))) mfccs velocity-features acceleration-features) 'vector)))
+
+;; Results of these are coming out equal now!
+
+(defun mfcc (filename)
+  (let* ((wav-data (wav:read-wav-file filename :chunk-data-reader (wav:wrap-data-chunk-data-samples-reader)))
+	 (chunk-data (getf (second wav-data) :chunk-data))
+	 (samples (elt (third wav-data) 5))
+	 (audio-segment (make-audio-segment :filename filename
+					    :sample-rate (getf chunk-data :sample-rate)
+					    :sample-resolution (getf chunk-data :SIGNIFICANT-BITS-PER-SAMPLE)
+					    :samples samples)))
+    (get-mfcc-features audio-segment)))
+
+
+  ;; seconds
+  ;; id
+  ;; source
+  ;; sample-rate
+  ;; sample-resolution
+  ;; transcript
+  ;; samples
+  ;; filename)
+
+
+
+
+    
