@@ -449,7 +449,7 @@
 					    :sample-rate (getf chunk-data :sample-rate)
 					    :sample-resolution (getf chunk-data :SIGNIFICANT-BITS-PER-SAMPLE)
 					    :samples samples)))
-    (get-mfcc-features audio-segment)))
+    (get-mfcc-features audio-segment :cepstra-mean-normalization t)))
 
 
   ;; seconds
