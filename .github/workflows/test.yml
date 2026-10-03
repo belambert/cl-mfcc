@@ -1,0 +1,22 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: belambert/cl-dct
+          path: ~/common-lisp/cl-dct
+      - uses: 40ants/setup-lisp@v4
+      - run: |
+          mkdir -p ~/common-lisp && ln -s "$PWD" ~/common-lisp/cl-mfcc
+          sbcl --noinform --non-interactive \
+            --eval '(ql:quickload :mfcc-test)' \
+            --eval '(unless (lisp-unit:run-tests :all :mfcc-test) (uiop:quit 1))'

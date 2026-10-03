@@ -12,6 +12,7 @@
     :serial t
     :components
     ((:file "package")
+     (:file "audio")
      (:file "mfcc"))))
   :depends-on (:alexandria
 	       :dct

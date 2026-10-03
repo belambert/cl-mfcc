@@ -14,4 +14,5 @@
 
 (defpackage :mfcc
   (:use :common-lisp)
-  (:export ))
+  (:export :audio-segment :make-audio-segment :audio-segment-samples :audio-segment-sample-rate
+	   :get-mfcc-features :get-mel-cepstrum :mel :inverse-mel))
