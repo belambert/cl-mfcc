@@ -13,8 +13,4 @@
     :components
     ((:file "test"))))
   :depends-on (:mfcc
-	       :lisp-unit
-	       ;; cl-coverage fails without explicitly loading these
-	       :trivial-features
-	       :babel
-	       :cl-coveralls))
+	       :lisp-unit))

@@ -116,10 +116,11 @@
     pre-emphasized-samples))
 
 (defun preemphasize-audio (audio &optional (alpha 0.95))
-  "Given an audio segment, chop it up into frames."
-  (setf (audio-segment-samples audio) 
-	(preemphasize-sample-list (audio-segment-samples audio) alpha))
-  audio)
+  "Return a copy of the audio segment with pre-emphasis applied; the input is not modified."
+  (let ((new (copy-audio-segment audio)))
+    (setf (audio-segment-samples new)
+	  (preemphasize-sample-list (audio-segment-samples audio) alpha))
+    new))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;; CEPSTRA MEAN NORMALIZATION  ;;;;;;;;
@@ -128,8 +129,7 @@
 (defun cepstra-mean-normalization (cepstra-list)
   "Given a list of ceptra vectors, compute the mean of all the vectors, then subtract the
    mean from each of the vectors."
-  (let ((cepstra-mean (vector-sequence-mean 'vector cepstra-list)))
-    (format t "CEPSTRAL MEAN:~{ ~F~}~%" (coerce cepstra-mean 'list))
+  (let ((cepstra-mean (vector-sequence-mean cepstra-list)))
     (map-into cepstra-list (lambda (x) (map-into x '- x cepstra-mean)) cepstra-list)
     cepstra-list))
 
@@ -343,9 +343,7 @@
 
 (defun mel-features->mel-cepstrum-features (feature-list &optional (cepstrum-count 13))
   "Given a list of mel features, compute the DCT, then return the top-n of those."
-  (declare (ignore cepstrum-count))
-  ;;(dct feature-list cepstrum-count)
-  (dct:dct feature-list))
+  (dct:dct feature-list :truncated cepstrum-count))
 
 (defun mel-cepstrum-features->mel-features (feature-list &optional (n 40))
   "Convert a list of Mel cepstral feature values, back to mel features.  This is done by
@@ -369,37 +367,32 @@
 	 (mel-cepstrum-features (mapcar (lambda (x) (mel-features->mel-cepstrum-features x cepstrum-count)) mel-feature-values))) ;; <-- 17% of consing (DCT)
     mel-cepstrum-features))
 
-(defun get-list-of-length-n (item length)
-  "Get a list of the specified length, containing the specified element."
-  (make-list length :initial-element item))
-
-(defun get-feature-deltas (feature-list-array)
-  "Given a list of feature lists, compute the delta values for each feature."
-  (let ((feature-count (length (first feature-list-array)))
-	(delta-list '())
-	(previous-feature-vector nil))
-    (dolist (feature-vector feature-list-array)
-      (if previous-feature-vector
-	  (push (mapcar '- feature-vector previous-feature-vector)
-		delta-list)
-	  (push (get-list-of-length-n 0.0 feature-count) delta-list))
-      (setf previous-feature-vector feature-vector))
-    (nreverse delta-list)))
+(defun get-feature-deltas (features &optional (window 2))
+  "Regression-based deltas of a sequence of feature vectors, with edge frames repeated."
+  (let* ((n (length features))
+	 (denom (* 2 (loop for k from 1 to window sum (* k k)))))
+    (coerce
+     (loop for i below n
+	   collect (let ((delta (make-array (length (elt features 0)) :element-type 'single-float :initial-element 0.0)))
+		     (loop for k from 1 to window
+			   for hi = (elt features (min (+ i k) (1- n)))
+			   for lo = (elt features (max (- i k) 0))
+			   do (map-into delta (lambda (d h l) (+ d (* k (- h l)))) delta hi lo))
+		     (map-into delta (lambda (d) (/ d denom)) delta)))
+     'vector)))
 
 (defun get-mfcc-features (audio &key (filter-bank-size 40) (start-freq 100) (end-freq 4000) (cepstrum-count 13) (preemphasize 0.95)
 			  (cepstra-mean-normalization t) (frame-length 25) (frame-delta 10))
   "Get the complete MFCC feature vectors with velocity and acceleration values."
   (when preemphasize (setf audio (preemphasize-audio audio preemphasize)))
-  (let* ((mfccs (get-mel-cepstrum audio
+  (let* ((raw-mfccs (get-mel-cepstrum audio
 				  :filter-bank-size filter-bank-size
 				  :start-freq start-freq
 				  :end-freq end-freq
 				  :cepstrum-count cepstrum-count
 				  :frame-length frame-length
 				  :frame-delta frame-delta))
-	 (xxx-ignore (when cepstra-mean-normalization
-		       (setf mfccs (cepstra-mean-normalization mfccs))))
+	 (mfccs (if cepstra-mean-normalization (cepstra-mean-normalization raw-mfccs) raw-mfccs))
 	 (velocity-features (get-feature-deltas mfccs))
 	 (acceleration-features (get-feature-deltas velocity-features)))
-    (declare (ignore xxx-ignore))
-    (coerce (mapcar (lambda (x y z) (coerce (append x y z) '(vector single-float))) mfccs velocity-features acceleration-features) 'vector)))
+    (map 'vector (lambda (x y z) (concatenate '(vector single-float) x y z)) mfccs velocity-features acceleration-features)))
